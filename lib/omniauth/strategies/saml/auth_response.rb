@@ -9,11 +9,11 @@ module OmniAuth
         PROTOCOL  = "urn:oasis:names:tc:SAML:2.0:protocol"
         DSIG      = "http://www.w3.org/2000/09/xmldsig#"
 
-        attr_accessor :options, :response, :document, :settings
+        attr_accessor :response, :document, :tenant_settings
 
-        def initialize(response, options = {})
+        def initialize(response, opts)
           raise ArgumentError.new("Response cannot be nil") if response.nil?
-          self.options  = options
+          self.tenant_settings  = opts
           self.response = response
           self.document = OmniAuth::Strategies::SAML::XMLSecurity::SignedDocument.new(Base64.decode64(response))
         end
@@ -84,11 +84,11 @@ module OmniAuth
             return soft ? false : validation_error("Blank response")
           end
 
-          if settings.nil?
+          if tenant_settings.nil?
             return soft ? false : validation_error("No settings on response")
           end
 
-          if settings.idp_cert_fingerprint.nil? && settings.idp_cert.nil?
+          if tenant_settings[:idp_cert_fingerprint].nil? && tenant_settings[:idp_cert].nil?
             return soft ? false : validation_error("No fingerprint or certificate on settings")
           end
 
@@ -96,17 +96,17 @@ module OmniAuth
         end
 
         def get_fingerprint
-          if settings.idp_cert
-            cert = OpenSSL::X509::Certificate.new(settings.idp_cert)
+          if tenant_settings[:idp_cert]
+            cert = OpenSSL::X509::Certificate.new(tenant_settings[:idp_cert])
             Digest::SHA1.hexdigest(cert.to_der).upcase.scan(/../).join(":")
           else
-            settings.idp_cert_fingerprint
+            tenant_settings[:idp_cert_fingerprint]
           end
         end
 
         def validate_conditions(soft = true)
           return true if conditions.nil?
-          return true if options[:skip_conditions]
+          return true if tenant_settings[:skip_conditions]
 
           if not_before = parse_time(conditions, "NotBefore")
             if Time.now.utc < not_before

@@ -11,15 +11,19 @@ module OmniAuth
 
       option :name_identifier_format, "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
 
+      def initialize(app, *args, &block)
+        Rails.logger.info "SAML init strategy #{self.object_id}"
+        super
+      end
+
       def request_phase
-        request = OmniAuth::Strategies::SAML::AuthRequest.new
-        redirect(request.create(options))
+        request = OmniAuth::Strategies::SAML::AuthRequest.new(tenant_settings(options))
+        redirect(request.create)
       end
 
       def callback_phase
         begin
-          response = OmniAuth::Strategies::SAML::AuthResponse.new(request.params['SAMLResponse'])
-          response.settings = options
+          response = OmniAuth::Strategies::SAML::AuthResponse.new(request.params['SAMLResponse'], tenant_settings(options))
 
           @name_id  = response.name_id
           @attributes = response.attributes
@@ -43,6 +47,11 @@ module OmniAuth
       end
 
       extra { { :raw_info => @attributes } }
+
+      private
+      def tenant_settings(settings)
+        @tenant_settings ||= Setting.all("authentication.saml.").inject({}) { |x, (k,v)| k = k.to_s.gsub(/^authentication\.saml\./,'').to_sym; x[k] = v; x }
+      end
 
     end
   end

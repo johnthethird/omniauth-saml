@@ -1,5 +1,7 @@
 # OmniAuth SAML
 
+*Spike for handling multi-tenant situations. DO NOT USE!*
+
 A generic SAML strategy for OmniAuth.
 
 https://github.com/PracticallyGreen/omniauth-saml
@@ -61,12 +63,12 @@ end
 
 ## License
 
-Copyright (c) 2011-2012 [Practically Green, Inc.](http://practicallygreen.com/) and [Rajiv Aaron Manglani](http://www.rajivmanglani.com/).  
+Copyright (c) 2011-2012 [Practically Green, Inc.](http://practicallygreen.com/) and [Rajiv Aaron Manglani](http://www.rajivmanglani.com/).
 All rights reserved. Released under the MIT license.
 
-Portions Copyright (c) 2007 Sun Microsystems Inc.  
-Portions Copyright (c) 2007 Todd W Saxton.  
-Portions Copyright (c) 2011 Raecoo Cao.  
+Portions Copyright (c) 2007 Sun Microsystems Inc.
+Portions Copyright (c) 2007 Todd W Saxton.
+Portions Copyright (c) 2011 Raecoo Cao.
 Portions Copyright (c) 2011 Ryan Wilcox.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
