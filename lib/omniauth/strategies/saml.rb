@@ -38,19 +38,14 @@ module OmniAuth
       uid { @name_id }
 
       info do
-        {
-          :name  => @attributes[:name],
-          :email => @attributes[:email] || @attributes[:mail],
-          :first_name => @attributes[:first_name] || @attributes[:firstname],
-          :last_name => @attributes[:last_name] || @attributes[:lastname]
-        }
+        @attributes
       end
 
       extra { { :raw_info => @attributes } }
 
       private
       def tenant_settings(settings)
-        @tenant_settings ||= Setting.all("authentication.saml.").inject({}) { |x, (k,v)| k = k.to_s.gsub(/^authentication\.saml\./,'').to_sym; x[k] = v; x }
+        Setting.all("authentication.saml.").inject(settings) { |x, (k,v)| k = k.to_s.gsub(/^authentication\.saml\./,'').to_sym; x[k] = v; x }
       end
 
     end
