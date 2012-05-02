@@ -84,7 +84,7 @@ module OmniAuth
               hashed_element                = REXML::XPath.first(self, "//[@ID='#{uri[1,uri.size]}']")
               canoner                       = XML::Util::XmlCanonicalizer.new(false, true)
               canoner.inclusive_namespaces  = inclusive_namespaces if canoner.respond_to?(:inclusive_namespaces) && !inclusive_namespaces.empty?
-              canon_hashed_element          = canoner.canonicalize(hashed_element)
+              canon_hashed_element          = canoner.canonicalize(hashed_element).gsub('&','&amp;')
               hash                          = Base64.encode64(Digest::SHA1.digest(canon_hashed_element)).chomp
               digest_value                  = REXML::XPath.first(ref, "//ds:DigestValue", {"ds"=>"http://www.w3.org/2000/09/xmldsig#"}).text
 
