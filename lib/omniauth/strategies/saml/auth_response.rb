@@ -31,7 +31,12 @@ module OmniAuth
           @name_id ||= begin
             node = xpath("/p:Response/a:Assertion[@ID='#{signed_element_id}']/a:Subject/a:NameID")
             node ||=  xpath("/p:Response[@ID='#{signed_element_id}']/a:Assertion/a:Subject/a:NameID")
-            node.nil? ? nil : strip(node.text)
+            if node.nil?
+              Rails.logger.error "[SAML] Error: name_id is nil for #{signed_element_id}"
+              nil
+            else
+              strip(node.text)
+            end
           end
         end
 
