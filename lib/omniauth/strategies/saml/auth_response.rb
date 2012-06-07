@@ -81,15 +81,21 @@ module OmniAuth
 
         def validate_response_state(soft = true)
           if response.empty?
-            return soft ? false : validation_error("Blank response")
+            msg = "[SAML] Error: Blank response"
+            Rails.logger.error msg
+            return soft ? false : validation_error(msg)
           end
 
           if tenant_settings.nil?
-            return soft ? false : validation_error("No settings on response")
+            msg = "[SAML] Error: No settings on response"
+            Rails.logger.error msg
+            return soft ? false : validation_error(msg)
           end
 
           if tenant_settings[:idp_cert_fingerprint].nil? && tenant_settings[:idp_cert].nil?
-            return soft ? false : validation_error("No fingerprint or certificate on settings")
+            msg = "[SAML] Error: No fingerprint or certificate on settings"
+            Rails.logger.error msg
+            return soft ? false : validation_error(msg)
           end
 
           true
@@ -110,13 +116,17 @@ module OmniAuth
 
           if not_before = parse_time(conditions, "NotBefore")
             if Time.now.utc < not_before
-              return soft ? false : validation_error("Current time is earlier than NotBefore condition")
+              msg = "[SAML] Error: Current time is earlier than NotBefore condition"
+              Rails.logger.error msg
+              return soft ? false : validation_error(msg)
             end
           end
 
           if not_on_or_after = parse_time(conditions, "NotOnOrAfter")
             if Time.now.utc >= not_on_or_after
-              return soft ? false : validation_error("Current time is on or after NotOnOrAfter condition")
+              msg = "[SAML] Error: Current time is on or after NotOnOrAfter condition"
+              Rails.logger.error msg
+              return soft ? false : validation_error(msg)
             end
           end
 
@@ -142,6 +152,7 @@ module OmniAuth
           doc_id = document.signed_element_id
           doc_id[1, doc_id.size]
         end
+
       end
     end
   end

@@ -12,7 +12,7 @@ module OmniAuth
       option :name_identifier_format, "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
 
       def initialize(app, *args, &block)
-        Rails.logger.info "SAML init strategy #{self.object_id}"
+        Rails.logger.debug "SAML init strategy #{self.object_id}"
         super
       end
 
@@ -36,7 +36,9 @@ module OmniAuth
 
           super
         rescue ArgumentError => e
-          fail!(:invalid_ticket, OmniAuth::Strategies::SAML::ValidationError.new('Invalid SAML Response'))
+          ex = OmniAuth::Strategies::SAML::ValidationError.new('Invalid SAML Response')
+          ex.saml_response = response
+          fail!(:invalid_ticket, ex)
         end
       end
 
