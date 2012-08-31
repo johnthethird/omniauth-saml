@@ -23,7 +23,7 @@ module OmniAuth
             "<saml:Issuer xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">#{tenant_settings[:issuer]}</saml:Issuer>\n" +
             "<samlp:NameIDPolicy xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" Format=\"#{tenant_settings[:name_identifier_format]}\" AllowCreate=\"true\"></samlp:NameIDPolicy>\n" +
             "<samlp:RequestedAuthnContext xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" Comparison=\"exact\">" +
-            "<saml:AuthnContextClassRef xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml:AuthnContextClassRef></samlp:RequestedAuthnContext>\n" +
+            "<saml:AuthnContextClassRef xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">#{tenant_settings[:authentication_context]}</saml:AuthnContextClassRef></samlp:RequestedAuthnContext>\n" +
             "</samlp:AuthnRequest>"
 
           deflated_request  = Zlib::Deflate.deflate(request, 9)[2..-5]
