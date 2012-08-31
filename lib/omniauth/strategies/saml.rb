@@ -17,8 +17,9 @@ module OmniAuth
       end
 
       def request_phase
-        request = OmniAuth::Strategies::SAML::AuthRequest.new(tenant_settings(options))
-        redirect(request.create)
+        session["user_return_to"] = request.params['redirect_to'] if request.params['redirect_to'].present?
+        auth_request = OmniAuth::Strategies::SAML::AuthRequest.new(tenant_settings(options))
+        redirect(auth_request.create)
       end
 
       def callback_phase
