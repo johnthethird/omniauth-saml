@@ -154,8 +154,7 @@ module OmniAuth
         end
 
         def signed_element_id
-          doc_id = document.signed_element_id
-          doc_id[1, doc_id.size]
+          document.signed_element_id
         end
 
       end
