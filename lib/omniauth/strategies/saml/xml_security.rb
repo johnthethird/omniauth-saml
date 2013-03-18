@@ -30,143 +30,149 @@ require 'nokogiri'
 require "digest/sha1"
 require "digest/sha2"
 
-module XMLSecurity
+module OmniAuth
+  module Strategies
+    class SAML
 
-  class SignedDocument < REXML::Document
-    C14N = "http://www.w3.org/2001/10/xml-exc-c14n#"
-    DSIG = "http://www.w3.org/2000/09/xmldsig#"
+      module XMLSecurity
 
-    attr_accessor :signed_element_id
+        class SignedDocument < REXML::Document
+          C14N = "http://www.w3.org/2001/10/xml-exc-c14n#"
+          DSIG = "http://www.w3.org/2000/09/xmldsig#"
 
-    def initialize(response)
-      super(response)
-      extract_signed_element_id
-      Rails.logger.info "[SAML] SignedDocument#init signed_element_id=#{self.signed_elment_id}" if Setting.as_bool('authentication.saml.debug')
-    end
+          attr_accessor :signed_element_id
 
-    def validate(idp_cert_fingerprint, soft = true)
-      # get cert from response
-      cert_element = REXML::XPath.first(self, "//ds:X509Certificate", { "ds"=>DSIG })
-      raise OmniAuth::Strategies::SAML::ValidationError.new("Certificate element missing in response (ds:X509Certificate)") unless cert_element
-      base64_cert  = cert_element.text
-      cert_text    = Base64.decode64(base64_cert)
-      cert         = OpenSSL::X509::Certificate.new(cert_text)
+          def initialize(response)
+            super(response)
+            extract_signed_element_id
+            Rails.logger.info "[SAML] SignedDocument#init signed_element_id=#{self.signed_elment_id}" if Setting.as_bool('authentication.saml.debug')
+          end
 
-      # check cert matches registered idp cert
-      fingerprint = Digest::SHA1.hexdigest(cert.to_der)
+          def validate(idp_cert_fingerprint, soft = true)
+            # get cert from response
+            cert_element = REXML::XPath.first(self, "//ds:X509Certificate", { "ds"=>DSIG })
+            raise OmniAuth::Strategies::SAML::ValidationError.new("Certificate element missing in response (ds:X509Certificate)") unless cert_element
+            base64_cert  = cert_element.text
+            cert_text    = Base64.decode64(base64_cert)
+            cert         = OpenSSL::X509::Certificate.new(cert_text)
 
-      if fingerprint != idp_cert_fingerprint.gsub(/[^a-zA-Z0-9]/,"").downcase
-        Rails.logger.error "[SAML] Fingerprint Mismatch #{fingerprint} != #{idp_cert_fingerprint.gsub(/[^a-zA-Z0-9]/,"").downcase}"
-        return soft ? false : (raise OmniAuth::Strategies::SAML::ValidationError.new("Fingerprint mismatch"))
-      end
+            # check cert matches registered idp cert
+            fingerprint = Digest::SHA1.hexdigest(cert.to_der)
 
-      validate_doc(base64_cert, soft)
-    end
+            if fingerprint != idp_cert_fingerprint.gsub(/[^a-zA-Z0-9]/,"").downcase
+              Rails.logger.error "[SAML] Fingerprint Mismatch #{fingerprint} != #{idp_cert_fingerprint.gsub(/[^a-zA-Z0-9]/,"").downcase}"
+              return soft ? false : (raise OmniAuth::Strategies::SAML::ValidationError.new("Fingerprint mismatch"))
+            end
 
-    def validate_doc(base64_cert, soft = true)
-      # validate references
+            validate_doc(base64_cert, soft)
+          end
 
-      # check for inclusive namespaces
-      inclusive_namespaces = extract_inclusive_namespaces
+          def validate_doc(base64_cert, soft = true)
+            # validate references
 
-      document = Nokogiri.parse(self.to_s)
+            # check for inclusive namespaces
+            inclusive_namespaces = extract_inclusive_namespaces
 
-      # create a working copy so we don't modify the original
-      @working_copy ||= REXML::Document.new(self.to_s).root
+            document = Nokogiri.parse(self.to_s)
 
-      # store and remove signature node
-      @sig_element ||= begin
-        element = REXML::XPath.first(@working_copy, "//ds:Signature", {"ds"=>DSIG})
-        element.remove
-      end
+            # create a working copy so we don't modify the original
+            @working_copy ||= REXML::Document.new(self.to_s).root
+
+            # store and remove signature node
+            @sig_element ||= begin
+              element = REXML::XPath.first(@working_copy, "//ds:Signature", {"ds"=>DSIG})
+              element.remove
+            end
 
 
-      # verify signature
-      signed_info_element     = REXML::XPath.first(@sig_element, "//ds:SignedInfo", {"ds"=>DSIG})
-      noko_sig_element = document.at_xpath('//ds:Signature', 'ds' => DSIG)
-      noko_signed_info_element = noko_sig_element.at_xpath('./ds:SignedInfo', 'ds' => DSIG)
-      canon_algorithm = canon_algorithm REXML::XPath.first(@sig_element, '//ds:CanonicalizationMethod', 'ds' => DSIG)
-      canon_string = noko_signed_info_element.canonicalize(canon_algorithm)
-      noko_sig_element.remove
+            # verify signature
+            signed_info_element     = REXML::XPath.first(@sig_element, "//ds:SignedInfo", {"ds"=>DSIG})
+            noko_sig_element = document.at_xpath('//ds:Signature', 'ds' => DSIG)
+            noko_signed_info_element = noko_sig_element.at_xpath('./ds:SignedInfo', 'ds' => DSIG)
+            canon_algorithm = canon_algorithm REXML::XPath.first(@sig_element, '//ds:CanonicalizationMethod', 'ds' => DSIG)
+            canon_string = noko_signed_info_element.canonicalize(canon_algorithm)
+            noko_sig_element.remove
 
-      # check digests
-      REXML::XPath.each(@sig_element, "//ds:Reference", {"ds"=>DSIG}) do |ref|
-        uri                           = ref.attributes.get_attribute("URI").value
+            # check digests
+            REXML::XPath.each(@sig_element, "//ds:Reference", {"ds"=>DSIG}) do |ref|
+              uri                           = ref.attributes.get_attribute("URI").value
 
-        hashed_element                = document.at_xpath("//*[@ID='#{uri[1..-1]}']")
-        canon_algorithm               = canon_algorithm REXML::XPath.first(ref, '//ds:CanonicalizationMethod', 'ds' => DSIG)
-        canon_hashed_element          = hashed_element.canonicalize(canon_algorithm, inclusive_namespaces).gsub('&','&amp;')
+              hashed_element                = document.at_xpath("//*[@ID='#{uri[1..-1]}']")
+              canon_algorithm               = canon_algorithm REXML::XPath.first(ref, '//ds:CanonicalizationMethod', 'ds' => DSIG)
+              canon_hashed_element          = hashed_element.canonicalize(canon_algorithm, inclusive_namespaces).gsub('&','&amp;')
 
-        digest_algorithm              = algorithm(REXML::XPath.first(ref, "//ds:DigestMethod"))
+              digest_algorithm              = algorithm(REXML::XPath.first(ref, "//ds:DigestMethod"))
 
-        hash                          = digest_algorithm.digest(canon_hashed_element)
-        digest_value                  = Base64.decode64(REXML::XPath.first(ref, "//ds:DigestValue", {"ds"=>DSIG}).text)
+              hash                          = digest_algorithm.digest(canon_hashed_element)
+              digest_value                  = Base64.decode64(REXML::XPath.first(ref, "//ds:DigestValue", {"ds"=>DSIG}).text)
 
-        unless digests_match?(hash, digest_value)
-          Rails.logger.error "[SAML] Digest Mismatch for #{uri}"
-          return soft ? false : (raise OmniAuth::Strategies::SAML::ValidationError.new("Digest mismatch"))
-        end
-      end
+              unless digests_match?(hash, digest_value)
+                Rails.logger.error "[SAML] Digest Mismatch for #{uri}"
+                return soft ? false : (raise OmniAuth::Strategies::SAML::ValidationError.new("Digest mismatch"))
+              end
+            end
 
-      base64_signature        = REXML::XPath.first(@sig_element, "//ds:SignatureValue", {"ds"=>DSIG}).text
-      signature               = Base64.decode64(base64_signature)
+            base64_signature        = REXML::XPath.first(@sig_element, "//ds:SignatureValue", {"ds"=>DSIG}).text
+            signature               = Base64.decode64(base64_signature)
 
-      # get certificate object
-      cert_text               = Base64.decode64(base64_cert)
-      cert                    = OpenSSL::X509::Certificate.new(cert_text)
+            # get certificate object
+            cert_text               = Base64.decode64(base64_cert)
+            cert                    = OpenSSL::X509::Certificate.new(cert_text)
 
-      # signature method
-      signature_algorithm     = algorithm(REXML::XPath.first(signed_info_element, "//ds:SignatureMethod", {"ds"=>DSIG}))
+            # signature method
+            signature_algorithm     = algorithm(REXML::XPath.first(signed_info_element, "//ds:SignatureMethod", {"ds"=>DSIG}))
 
-      unless cert.public_key.verify(signature_algorithm.new, signature, canon_string)
-        Rails.logger.error "[SAML] Key validation error"
-        return soft ? false : (raise OmniAuth::Strategies::SAML::ValidationError.new("Key validation error"))
-      end
+            unless cert.public_key.verify(signature_algorithm.new, signature, canon_string)
+              Rails.logger.error "[SAML] Key validation error"
+              return soft ? false : (raise OmniAuth::Strategies::SAML::ValidationError.new("Key validation error"))
+            end
 
-      return true
-    end
+            return true
+          end
 
-    private
+          private
 
-    def digests_match?(hash, digest_value)
-      hash == digest_value
-    end
+          def digests_match?(hash, digest_value)
+            hash == digest_value
+          end
 
-    def extract_signed_element_id
-      reference_element       = REXML::XPath.first(self, "//ds:Signature/ds:SignedInfo/ds:Reference", {"ds"=>DSIG})
-      self.signed_element_id  = reference_element.attribute("URI").value[1..-1] unless reference_element.nil?
-    end
+          def extract_signed_element_id
+            reference_element       = REXML::XPath.first(self, "//ds:Signature/ds:SignedInfo/ds:Reference", {"ds"=>DSIG})
+            self.signed_element_id  = reference_element.attribute("URI").value[1..-1] unless reference_element.nil?
+          end
 
-    def canon_algorithm(element)
-      algorithm = element.attribute('Algorithm').value if element
-      case algorithm
-        when "http://www.w3.org/2001/10/xml-exc-c14n#"         then Nokogiri::XML::XML_C14N_EXCLUSIVE_1_0
-        when "http://www.w3.org/TR/2001/REC-xml-c14n-20010315" then Nokogiri::XML::XML_C14N_1_0
-        when "http://www.w3.org/2006/12/xml-c14n11"            then Nokogiri::XML::XML_C14N_1_1
-        else                                                        Nokogiri::XML::XML_C14N_EXCLUSIVE_1_0
-      end
-    end
+          def canon_algorithm(element)
+            algorithm = element.attribute('Algorithm').value if element
+            case algorithm
+              when "http://www.w3.org/2001/10/xml-exc-c14n#"         then Nokogiri::XML::XML_C14N_EXCLUSIVE_1_0
+              when "http://www.w3.org/TR/2001/REC-xml-c14n-20010315" then Nokogiri::XML::XML_C14N_1_0
+              when "http://www.w3.org/2006/12/xml-c14n11"            then Nokogiri::XML::XML_C14N_1_1
+              else                                                        Nokogiri::XML::XML_C14N_EXCLUSIVE_1_0
+            end
+          end
 
-    def algorithm(element)
-      algorithm = element.attribute("Algorithm").value if element
-      algorithm = algorithm && algorithm =~ /sha(.*?)$/i && $1.to_i
-      case algorithm
-      when 256 then OpenSSL::Digest::SHA256
-      when 384 then OpenSSL::Digest::SHA384
-      when 512 then OpenSSL::Digest::SHA512
-      else
-        OpenSSL::Digest::SHA1
-      end
-    end
+          def algorithm(element)
+            algorithm = element.attribute("Algorithm").value if element
+            algorithm = algorithm && algorithm =~ /sha(.*?)$/i && $1.to_i
+            case algorithm
+            when 256 then OpenSSL::Digest::SHA256
+            when 384 then OpenSSL::Digest::SHA384
+            when 512 then OpenSSL::Digest::SHA512
+            else
+              OpenSSL::Digest::SHA1
+            end
+          end
 
-    def extract_inclusive_namespaces
-      if element = REXML::XPath.first(self, "//ec:InclusiveNamespaces", { "ec" => C14N })
-        prefix_list = element.attributes.get_attribute("PrefixList").value
-        prefix_list.split(" ")
-      else
-        []
-      end
-    end
-
-  end
-end
+          def extract_inclusive_namespaces
+            if element = REXML::XPath.first(self, "//ec:InclusiveNamespaces", { "ec" => C14N })
+              prefix_list = element.attributes.get_attribute("PrefixList").value
+              prefix_list.split(" ")
+            else
+              []
+            end
+          end
+        end #class SignedDocument
+      end #module XMLSecurity
+    end #class SAML
+  end #module Strategies
+end #module MoniAuth
