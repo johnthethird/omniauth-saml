@@ -9,6 +9,8 @@ module OmniAuth
       option :name_identifier_format, "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
 
       def request_phase
+        session["user_return_to"] = request.params['redirect_to'] if request.params['redirect_to'].present?
+
         request = Onelogin::Saml::Authrequest.new
         settings = Onelogin::Saml::Settings.new(options)
 
@@ -33,21 +35,32 @@ module OmniAuth
         response.validate!
 
         super
-      rescue OmniAuth::Strategies::SAML::ValidationError
-        fail!(:invalid_ticket, $!)
-      rescue Onelogin::Saml::ValidationError
-        fail!(:invalid_ticket, $!)
+      rescue OmniAuth::Strategies::SAML::ValidationError => e
+        msg = "Invalid SAML Ticket"
+        msg << ": #{e.message}" if e.message
+        Rails.logger.error "[SAML] Error: #{msg}"
+        ex = OmniAuth::Strategies::SAML::ValidationError.new(msg)
+        ex.saml_response = response
+        fail!(:invalid_ticket, ex)
+      rescue Onelogin::Saml::ValidationError => e
+        msg = "Invalid SAML Response"
+        msg << ": #{e.message}" if e.message
+        Rails.logger.error "[SAML] Error: #{msg} #{e.message}"
+        ex = OmniAuth::Strategies::SAML::ValidationError.new(msg)
+        ex.saml_response = response
+        fail!(:invalid_ticket, ex)
       end
 
       uid { @name_id }
 
       info do
-        {
-          :name  => @attributes[:name],
-          :email => @attributes[:email] || @attributes[:mail],
-          :first_name => @attributes[:first_name] || @attributes[:firstname] || @attributes[:firstName],
-          :last_name => @attributes[:last_name] || @attributes[:lastname] || @attributes[:lastName]
-        }
+        @attributes
+        # {
+        #   :name  => @attributes[:name],
+        #   :email => @attributes[:email] || @attributes[:mail],
+        #   :first_name => @attributes[:first_name] || @attributes[:firstname] || @attributes[:firstName],
+        #   :last_name => @attributes[:last_name] || @attributes[:lastname] || @attributes[:lastName]
+        # }
       end
 
       extra { { :raw_info => @attributes } }
